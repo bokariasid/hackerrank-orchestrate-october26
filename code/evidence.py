@@ -55,12 +55,14 @@ def observation(
     if not resource_id:
         return None
     if not state:
-        if data is None:
-            state = "ABSENT"
-        elif isinstance(data, dict) and (
-            data.get("status_code") == 404
-            or data.get("rows") == "0"
-            or data.get("result") in ("miss", "NOT_FOUND")
+        if (
+            data is None
+            or isinstance(data, dict)
+            and (
+                data.get("status_code") == 404
+                or data.get("rows") == "0"
+                or data.get("result") in ("miss", "NOT_FOUND")
+            )
         ):
             state = "ABSENT"
         else:
@@ -81,7 +83,11 @@ def snapshot_scope(
     collection, evidence_id, captured_at, covered_store="", available_at=None
 ):
     prefix = next(
-        (value for name, value in SCOPE_PREFIXES.items() if collection.startswith(name)),
+        (
+            value
+            for name, value in SCOPE_PREFIXES.items()
+            if collection.startswith(name)
+        ),
         None,
     )
     if prefix is None:
@@ -198,7 +204,11 @@ def parse_sql(path, evidence_id, captured_at):
             if table == "snapshot_scope":
                 continue
             prefix = next(
-                (value for name, value in SCOPE_PREFIXES.items() if table.startswith(name)),
+                (
+                    value
+                    for name, value in SCOPE_PREFIXES.items()
+                    if table.startswith(name)
+                ),
                 None,
             )
             covered_system = system_for(prefix + "0") if prefix else ""
@@ -239,7 +249,7 @@ RESOURCE = re.compile(
 TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 
-def parse_text(path, evidence_id, captured_at):
+def parse_text(path, evidence_id, captured_at, model=None):
     result = []
     traces = {}
     for line in path.read_text(errors="replace").splitlines():
@@ -317,26 +327,53 @@ def parse_text(path, evidence_id, captured_at):
             or "| NOT_FOUND |" in line
         ):
             state = "ABSENT"
-        elif any(
-            x in line
-            for x in (
-                "rows=1",
-                "result=hit",
-                "| FOUND |",
-                "| ACTIVE |",
-                "| IDENTIFIABLE |",
-                "| ANONYMIZED |",
-                "| REDACTED |",
-                "matched_value=",
-                "enabled=true",
-                "restore_allowed=true",
+        elif (
+            any(
+                x in line
+                for x in (
+                    "rows=1",
+                    "result=hit",
+                    "| FOUND |",
+                    "| ACTIVE |",
+                    "| IDENTIFIABLE |",
+                    "| ANONYMIZED |",
+                    "| REDACTED |",
+                    "matched_value=",
+                    "enabled=true",
+                    "restore_allowed=true",
+                )
+            )
+            or "_completed" in event
+            or any(
+                x in event
+                for x in ("scan", "heartbeat", "record_lookup", "restore_candidate")
             )
         ):
             state = "PRESENT"
-        elif "_completed" not in event and not any(
-            x in event
-            for x in ("scan", "heartbeat", "record_lookup", "restore_candidate")
+        elif model is not None and (
+            fields.get("rows") == "1"
+            or str(fields.get("result", "")).lower() == "hit"
+            or str(fields.get("direct_identifiers", "")) == "0"
+            or str(fields.get("enabled", "")).lower() == "false"
+            or str(fields.get("restore_allowed", "")).lower() == "false"
+            or str(fields.get("message_text", "")).upper() == "[REDACTED]"
+            or (resource.startswith("backup_") and "| BLOCKED |" in line)
+            or (resource.startswith("data_flow_") and "| DISABLED |" in line)
         ):
+            answer = model.extract(
+                "Does this final log readback prove the named resource exists at this time? "
+                "Return state PRESENT or UNKNOWN. Do not treat attempted operations or "
+                "workflow claims as proof. Log line: " + line,
+                ["state"],
+            )
+            if answer["state"] != "PRESENT":
+                continue
+            if resource.startswith("backup_") and "| BLOCKED |" in line:
+                fields["restore_allowed"] = "false"
+            if resource.startswith("data_flow_") and "| DISABLED |" in line:
+                fields["enabled"] = "false"
+            state = "PRESENT"
+        else:
             continue
         if " | " in line:
             parts = [piece.strip() for piece in line.split("|")]
@@ -444,7 +481,7 @@ def load_evidence(dataset_path, model=None):
         elif suffix == ".sql":
             parsed = parse_sql(path, item["file_id"], item["captured_at"])
         elif suffix in (".log", ".txt"):
-            parsed = parse_text(path, item["file_id"], item["captured_at"])
+            parsed = parse_text(path, item["file_id"], item["captured_at"], model)
         elif suffix == ".pdf":
             parsed = parse_pdf(
                 path, item["file_id"], item["captured_at"], catalog_links

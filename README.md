@@ -24,7 +24,7 @@ The key is never written to predictions, reports, or the package. The `.env` fil
 python3 code/evaluation/main.py
 ```
 
-This generates root `output.csv`, public-sample predictions, `evaluation/evaluation_report.md`, and `evaluation/usage_report.md`. The full run makes local model calls for screenshots and non-ASCII requests, caches structured responses by input and prompt hash, and records actual server token counts. It makes no cloud calls.
+This generates root `output.csv`, public-sample predictions, `evaluation/evaluation_report.md`, and `evaluation/usage_report.md`. The full run makes local model calls for screenshots, resource-identified final log readbacks, and non-ASCII requests; it caches structured responses by input and prompt hash and records actual server token counts. It makes no cloud calls.
 
 For a parser-only baseline:
 
@@ -54,7 +54,7 @@ python3 -m unittest discover -s tests -v
 
 1. Resolve the request email against current identity and audit history, including old emails and email hashes.
 2. Read SQL, JSON, logs, text, PDFs, and screenshots into timestamped resource observations. A resource's file capture time and embedded observation time must both precede `audit_at`.
-3. Link resources through identifiers, resource IDs, activity, and bounded timing where explicit links are missing. Prefer direct evidence over workflow claims.
+3. Link resources through identifiers, explicit resource references, and subject-identifying activity. Do not infer membership from shared files or nearby timestamps.
 4. Apply supplied deletion rules, identify remaining copies and active recreation paths, then order findings, remediation, and verification by the challenge's operation order.
 
 `sample_output.csv` is used only by evaluation code. It is never loaded by `code/main.py` for predictions. The sample is disjoint from the 518 evaluation requests, so its score does not measure hidden-case accuracy.
@@ -64,7 +64,7 @@ python3 -m unittest discover -s tests -v
 After the final run, create `code.zip` from the repository root:
 
 ```bash
-zip -r code.zip code config.json requirements.txt README.md .gitignore evaluation tests -x '*/__pycache__/*' '*.pyc'
+zip -r code.zip code config.json requirements.txt README.md .gitignore evaluation tests -x '*/__pycache__/*' '*.pyc' 'evaluation/model_responses.*'
 ```
 
 Submit `code.zip`, root `output.csv`, and root `log.txt` separately. Do not include `dataset/`, `.env`, `.model-cache/`, or credentials in the archive. The challenge and submission page is https://www.hackerrank.com/contests/hackerrank-orchestrate-october26/challenges/ghost-data-still-exists.

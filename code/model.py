@@ -114,7 +114,7 @@ class LocalModel:
             },
         )
         started = time.monotonic()
-        with request.urlopen(call, timeout=180) as response:
+        with request.urlopen(call, timeout=600) as response:
             result = json.load(response)
         self.usage["elapsed_seconds"] += time.monotonic() - started
         self.usage["calls"] += 1
