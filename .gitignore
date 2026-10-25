@@ -1,0 +1,8 @@
+.env
+.model-cache/
+__pycache__/
+.pycache/
+*.pyc
+sample_predictions.csv
+code.zip
+.DS_Store

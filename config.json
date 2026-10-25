@@ -1,0 +1,6 @@
+{
+  "provider": "local-mlx-vlm",
+  "model": "mlx-community/Qwen3.5-9B-MLX-4bit",
+  "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+  "evaluation_dir": "evaluation"
+}
